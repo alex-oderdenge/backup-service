@@ -1,0 +1,14 @@
+{
+  "backupEntries": [
+    {
+      "localPath": "/home/user/documents/",
+      "cloudPath": "gdrive:/backup/documents/"
+    },
+    {
+      "localPath": "/home/user/photos/",
+      "cloudPath": "gdrive:/backup/photos/"
+    }
+  ],
+  "scheduleCron": "0 0 * * *",
+  "cloudProvider": "rclone"
+}
