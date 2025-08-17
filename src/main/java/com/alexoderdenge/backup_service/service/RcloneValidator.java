@@ -1,5 +1,6 @@
 package com.alexoderdenge.backup_service.service;
 
+import com.alexoderdenge.backup_service.service.exception.RcloneException;
 import com.alexoderdenge.backup_service.service.exception.RemoteNotConfiguredException;
 import com.alexoderdenge.backup_service.service.exception.RcloneNotInstalledException;
 import lombok.extern.slf4j.Slf4j;
