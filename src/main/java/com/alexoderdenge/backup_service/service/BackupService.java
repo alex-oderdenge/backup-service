@@ -4,6 +4,7 @@ import com.alexoderdenge.backup_service.model.BackupConfig;
 import com.alexoderdenge.backup_service.service.exception.RemoteNotConfiguredException;
 import com.alexoderdenge.backup_service.service.exception.RcloneException;
 import com.alexoderdenge.backup_service.service.exception.RcloneNotInstalledException;
+import com.alexoderdenge.backup_service.util.FileUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -46,6 +47,19 @@ public class BackupService {
         // Process each backup entry
         for (BackupConfig.BackupEntry entry : config.getBackupEntries()) {
             try {
+                log.info("🔍 Validating source path: {}", entry.getLocalPath());
+                if (entry.getLocalPath() == null || entry.getLocalPath().isEmpty())
+                    throw new IllegalArgumentException("Local path cannot be null or empty");
+                //call method to check if local path exists, permissions, and is accessible
+                try {
+                    String validatedSourcePath = FileUtils.validateSourcePath(entry.getLocalPath());
+                    entry.setLocalPath(validatedSourcePath);
+                } catch (IllegalArgumentException e) {
+                    log.error("Invalid source path for {}: {}", entry.getLocalPath(), e.getMessage());
+                    continue; // Skip this entry if validation fails
+                }
+
+
                 log.info("🔄 Backing up: {} -> {}", entry.getLocalPath(), entry.getCloudPath());
                 cloudProvider.backup(entry.getLocalPath(), entry.getCloudPath());
             } catch (RemoteNotConfiguredException e) {
@@ -60,4 +74,6 @@ public class BackupService {
 
         log.info("=== Backup Task Completed ===");
     }
+
+
 }
