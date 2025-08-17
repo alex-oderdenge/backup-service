@@ -298,6 +298,26 @@ java -jar target/backup-service.jar --config=$HOME/.config/backup-service/backup
 
 **Note**: Make sure you have already configured rclone with a `gdrive` remote before running the backup service. The application will validate this and provide helpful error messages if the remote is not configured.
 
+### 6. **Configuration Properties**
+The application uses these properties in `application.properties`:
+
+```properties
+# Backup configuration file path - uses environment variable or falls back to default
+config=${HOME:${user.home}}/.config/backup-service/backup-config.json
+
+# Rclone configuration file path - uses environment variable or falls back to default
+rclone.config-path=${HOME:${user.home}}/.config/backup-service/rclone.conf
+```
+
+You can override these at runtime:
+```bash
+java -jar target/backup-service.jar \
+  --config=/path/to/backup-config.json \
+  --rclone.config-path=/path/to/rclone.conf
+```
+
+**Note**: The application automatically resolves `${HOME}` and `${user.home}` to your actual home directory. If you're still having issues, you can use absolute paths in the properties file.
+
 ---
 
 ## 🧪 Testing locally

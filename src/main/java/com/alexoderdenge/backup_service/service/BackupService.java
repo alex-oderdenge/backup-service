@@ -6,6 +6,7 @@ import com.alexoderdenge.backup_service.service.exception.RcloneException;
 import com.alexoderdenge.backup_service.service.exception.RcloneNotInstalledException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -17,8 +18,17 @@ public class BackupService {
     private final BackupConfig config;
     private final RcloneValidator rcloneValidator;
 
+    @Value("${config:classpath:backup-config.json}")
+    private String configPath;
+
+    @Value("${rclone.config-path:}")
+    private String rcloneConfigPath;
+
     public void runBackup() {
-        log.info("Starting backup task...");
+        log.info("=== Starting Backup Task ===");
+        log.info("📁 Backup config file: {}", configPath);
+        log.info("🔧 Rclone config file: {}", rcloneConfigPath.isEmpty() ? "default (~/.config/rclone/rclone.conf)" : rcloneConfigPath);
+        log.info("📋 Backup entries to process: {}", config.getBackupEntries().size());
 
         // Check if rclone is installed before processing any backups
         try {
@@ -36,7 +46,7 @@ public class BackupService {
         // Process each backup entry
         for (BackupConfig.BackupEntry entry : config.getBackupEntries()) {
             try {
-                log.info("Backing up: {} -> {}", entry.getLocalPath(), entry.getCloudPath());
+                log.info("🔄 Backing up: {} -> {}", entry.getLocalPath(), entry.getCloudPath());
                 cloudProvider.backup(entry.getLocalPath(), entry.getCloudPath());
             } catch (RemoteNotConfiguredException e) {
                 log.error("Remote '{}' is not configured: {}", e.getRemoteName(), e.getMessage());
@@ -48,6 +58,6 @@ public class BackupService {
             }
         }
 
-        log.info("Backup task completed.");
+        log.info("=== Backup Task Completed ===");
     }
 }

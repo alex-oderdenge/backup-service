@@ -35,6 +35,9 @@ public class RcloneCloudProvider implements CloudProvider {
         if (!rcloneConfigPath.isBlank()) {
             command.add("--config");
             command.add(rcloneConfigPath);
+            log.debug("Using custom rclone config: {}", rcloneConfigPath);
+        } else {
+            log.debug("Using default rclone config location");
         }
 
         command.add("--verbose");
@@ -51,7 +54,7 @@ public class RcloneCloudProvider implements CloudProvider {
                 throw new RcloneException("Rclone backup failed with exit code " + exitCode);
             }
 
-            log.info("Successfully backed up from {} to {}", source, destination);
+            log.info("✅ Successfully backed up from {} to {}", source, destination);
         } catch (IOException e) {
             log.error("Failed to execute rclone backup command", e);
             throw new RcloneException("Failed to execute rclone backup command", e);

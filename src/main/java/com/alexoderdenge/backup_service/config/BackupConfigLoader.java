@@ -27,22 +27,51 @@ public class BackupConfigLoader {
     @Bean
     public BackupConfig backupConfig() {
         try {
+            log.info("Attempting to load backup config from: {}", configPath);
+            
             BackupConfig config;
 
             if (isClasspathConfig(configPath)) {
                 config = loadFromClasspath(getClasspathResource(configPath));
                 log.info("Loaded backup config from classpath: {}", configPath);
             } else {
-                config = loadFromFileSystem(Path.of(configPath));
-                log.info("Loaded backup config from file system: {}", configPath);
+                Path resolvedPath = resolvePath(configPath);
+                log.info("Resolved config path to: {}", resolvedPath.toAbsolutePath());
+                config = loadFromFileSystem(resolvedPath);
+                log.info("Loaded backup config from file system: {}", resolvedPath);
             }
 
             return config;
 
         } catch (Exception e) {
             log.error("Error loading backup config from '{}'", configPath, e);
-            throw new IllegalStateException("Failed to load backup config", e);
+            log.error("Please ensure the backup configuration file exists at: {}", configPath);
+            log.error("You can create it manually or use the setup instructions in the README");
+            throw new IllegalStateException("Failed to load backup config from: " + configPath, e);
         }
+    }
+
+    private Path resolvePath(String pathString) {
+        // Handle environment variables and user.home
+        String resolvedPath = pathString;
+        
+        // Replace ${HOME} with actual home directory
+        if (resolvedPath.contains("${HOME}")) {
+            String homeDir = System.getenv("HOME");
+            if (homeDir == null) {
+                homeDir = System.getProperty("user.home");
+            }
+            resolvedPath = resolvedPath.replace("${HOME}", homeDir);
+        }
+        
+        // Replace ${user.home} with actual home directory
+        if (resolvedPath.contains("${user.home}")) {
+            String userHome = System.getProperty("user.home");
+            resolvedPath = resolvedPath.replace("${user.home}", userHome);
+        }
+        
+        log.debug("Resolved path '{}' to '{}'", pathString, resolvedPath);
+        return Path.of(resolvedPath);
     }
 
     private boolean isClasspathConfig(String path) {
@@ -64,7 +93,13 @@ public class BackupConfigLoader {
 
     private BackupConfig loadFromFileSystem(Path path) throws Exception {
         if (!Files.exists(path)) {
-            throw new IllegalArgumentException("File not found: " + path.toAbsolutePath());
+            String homeDir = System.getProperty("user.home");
+            String envHome = System.getenv("HOME");
+            
+            throw new IllegalArgumentException("Backup configuration file not found: " + path.toAbsolutePath() + 
+                "\nPlease create the configuration file or check the 'config' property in application.properties" +
+                "\nCurrent user.home: " + homeDir +
+                "\nCurrent HOME env: " + envHome);
         }
         return new ObjectMapper().readValue(Files.newBufferedReader(path), BackupConfig.class);
     }
