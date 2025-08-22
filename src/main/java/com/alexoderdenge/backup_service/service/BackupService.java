@@ -32,111 +32,153 @@ public class BackupService {
     private String rcloneConfigPath;
 
     public void runBackup() {
-        log.info("=== Starting Backup Task ===");
-        log.info("📁 Backup config file: {}", configPath);
-        log.info("🔧 Rclone config file: {}", rcloneConfigPath.isEmpty() ? "default (~/.config/rclone/rclone.conf)" : rcloneConfigPath);
-        log.info("📋 Backup entries to process: {}", config.getBackupEntries().size());
+        logBackupStart();
 
-        // Check if rclone is installed before processing any backups
-        try {
-            // Validate rclone installation first
-            rcloneValidator.validateRcloneInstallation();
-        } catch (RcloneNotInstalledException e) {
-            log.error("Rclone is not installed: {}", e.getMessage());
-            log.error("Stopping backup task - all backups will fail without rclone installed");
-            return; // Exit early - no point in continuing
-        } catch (RcloneException e) {
-            log.error("Failed to validate rclone installation: {}", e.getMessage());
-            return; // Exit early if we can't even validate rclone
+        if (!validateRcloneInstallation()) {
+            return; // Exit early if rclone is not properly installed
         }
 
-        // Process each backup entry
-        for (BackupConfig.BackupEntry entry : config.getBackupEntries()) {
-            try {
-                log.info("🔍 Validating backup entry: {} -> {} (compress: {})", 
-                        entry.getLocalPath(), entry.getCloudPath(), entry.isCompress());
-                
-                // Validate cloud path for compression requirements
-                compressionService.validateCloudPathForCompression(entry.getCloudPath(), entry.isCompress());
-                
-                if (entry.getLocalPath() == null || entry.getLocalPath().isEmpty())
-                    throw new IllegalArgumentException("Local path cannot be null or empty");
-                
-                // Validate source path exists, permissions, and is accessible
-                try {
-                    String validatedSourcePath = FileUtils.validateSourcePath(entry.getLocalPath());
-                    entry.setLocalPath(validatedSourcePath);
-                } catch (IllegalArgumentException e) {
-                    log.error("Invalid source path for {}: {}", entry.getLocalPath(), e.getMessage());
-                    continue; // Skip this entry if validation fails
-                }
-
-                // Handle compression if enabled
-                String sourceToBackup = entry.getLocalPath();
-                Path tempDirectory = null;
-                
-                if (entry.isCompress()) {
-                    try {
-                        log.info("�️ Compression enabled for: {}", entry.getLocalPath());
-                        
-                        // Create temporary directory for compressed files
-                        tempDirectory = FileUtils.createTempDirectory("backup-compression-");
-                        
-                        // Compress the source
-                        Path compressedFile = compressionService.compressToZip(
-                                Paths.get(entry.getLocalPath()), tempDirectory);
-                        
-                        sourceToBackup = compressedFile.toString();
-                        log.info("✅ Compressed {} to {}", entry.getLocalPath(), sourceToBackup);
-                        
-                    } catch (CompressionException | IOException e) {
-                        log.error("❌ Compression failed for {}: {}", entry.getLocalPath(), e.getMessage());
-                        if (tempDirectory != null) {
-                            try {
-                                FileUtils.deleteDirectoryRecursively(tempDirectory);
-                            } catch (IOException cleanupEx) {
-                                log.warn("Failed to cleanup temporary directory {}: {}", 
-                                        tempDirectory, cleanupEx.getMessage());
-                            }
-                        }
-                        continue; // Skip this entry if compression fails
-                    }
-                }
-
-                try {
-                    log.info("🔄 Backing up: {} -> {}", sourceToBackup, entry.getCloudPath());
-                    cloudProvider.backup(sourceToBackup, entry.getCloudPath());
-                    log.info("✅ Successfully backed up: {} -> {}", sourceToBackup, entry.getCloudPath());
-                    
-                } finally {
-                    // Clean up temporary directory if compression was used
-                    if (tempDirectory != null) {
-                        try {
-                            FileUtils.deleteDirectoryRecursively(tempDirectory);
-                            log.debug("🧹 Cleaned up temporary directory: {}", tempDirectory);
-                        } catch (IOException e) {
-                            log.warn("Failed to cleanup temporary directory {}: {}", 
-                                    tempDirectory, e.getMessage());
-                        }
-                    }
-                }
-                
-            } catch (RemoteNotConfiguredException e) {
-                log.error("Remote '{}' is not configured: {}", e.getRemoteName(), e.getMessage());
-                // Continue with other backups - this is a per-remote issue
-            } catch (RcloneException e) {
-                log.error("Rclone backup failed for {} → {}: {}", 
-                         entry.getLocalPath(), entry.getCloudPath(), e.getMessage());
-                // Continue with other backups - this might be a temporary issue
-            } catch (Exception e) {
-                log.error("Unexpected error during backup of {} → {}: {}", 
-                         entry.getLocalPath(), entry.getCloudPath(), e.getMessage());
-                // Continue with other backups - log and move on
-            }
-        }
+        processBackupEntries();
 
         log.info("=== Backup Task Completed ===");
     }
 
+    private void logBackupStart() {
+        log.info("=== Starting Backup Task ===");
+        log.info("📁 Backup config file: {}", configPath);
+        log.info("🔧 Rclone config file: {}", rcloneConfigPath.isEmpty() ? "default (~/.config/rclone/rclone.conf)" : rcloneConfigPath);
+        log.info("📋 Backup entries to process: {}", config.getBackupEntries().size());
+    }
 
+    private boolean validateRcloneInstallation() {
+        try {
+            rcloneValidator.validateRcloneInstallation();
+            return true;
+        } catch (RcloneNotInstalledException e) {
+            log.error("Rclone is not installed: {}", e.getMessage());
+            log.error("Stopping backup task - all backups will fail without rclone installed");
+            return false;
+        } catch (RcloneException e) {
+            log.error("Failed to validate rclone installation: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    private void processBackupEntries() {
+        for (BackupConfig.BackupEntry entry : config.getBackupEntries()) {
+            processIndividualBackupEntry(entry);
+        }
+    }
+
+    private void processIndividualBackupEntry(BackupConfig.BackupEntry entry) {
+        try {
+            log.info("🔍 Processing backup entry: {} -> {} (compress: {})",
+                    entry.getLocalPath(), entry.getCloudPath(), entry.isCompress());
+
+            if (!validateBackupEntry(entry)) {
+                return; // Skip this entry if validation fails
+            }
+
+            String sourceToBackup = handleCompressionIfEnabled(entry);
+            if (sourceToBackup == null) {
+                return; // Skip this entry if compression fails
+            }
+
+            performBackup(sourceToBackup, entry.getCloudPath());
+
+        } catch (RemoteNotConfiguredException e) {
+            log.error("Remote '{}' is not configured: {}", e.getRemoteName(), e.getMessage());
+            // Continue with other backups - this is a per-remote issue
+        } catch (RcloneException e) {
+            log.error("Rclone backup failed for {} → {}: {}",
+                    entry.getLocalPath(), entry.getCloudPath(), e.getMessage());
+            // Continue with other backups - this might be a temporary issue
+        } catch (Exception e) {
+            log.error("Unexpected error during backup of {} → {}: {}",
+                    entry.getLocalPath(), entry.getCloudPath(), e.getMessage());
+            // Continue with other backups - log and move on
+        }
+    }
+
+    private boolean validateBackupEntry(BackupConfig.BackupEntry entry) {
+        try {
+            // Validate cloud path for compression requirements
+            compressionService.validateCloudPathForCompression(entry.getCloudPath(), entry.isCompress());
+
+            // Validate local path
+            if (entry.getLocalPath() == null || entry.getLocalPath().isEmpty()) {
+                throw new IllegalArgumentException("Local path cannot be null or empty");
+            }
+
+            // Validate source path exists, permissions, and is accessible
+            String validatedSourcePath = FileUtils.validateSourcePath(entry.getLocalPath());
+            entry.setLocalPath(validatedSourcePath);
+
+            return true;
+
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid backup entry configuration for {}: {}", entry.getLocalPath(), e.getMessage());
+            return false;
+        }
+    }
+
+    private String handleCompressionIfEnabled(BackupConfig.BackupEntry entry) {
+        if (!entry.isCompress()) {
+            return entry.getLocalPath(); // No compression needed
+        }
+
+        return performCompression(entry.getLocalPath());
+    }
+
+    private String performCompression(String localPath) {
+        Path tempDirectory = null;
+        try {
+            log.info("🗜️ Compression enabled for: {}", localPath);
+
+            // Create temporary directory for compressed files
+            tempDirectory = FileUtils.createTempDirectory("backup-compression-");
+
+            // Compress the source
+            Path compressedFile = compressionService.compressToZip(
+                    Paths.get(localPath), tempDirectory);
+
+            log.info("✅ Compressed {} to {}", localPath, compressedFile);
+            return compressedFile.toString();
+
+        } catch (CompressionException | IOException e) {
+            log.error("❌ Compression failed for {}: {}", localPath, e.getMessage());
+            cleanupTempDirectory(tempDirectory);
+            return null; // Indicate compression failure
+        }
+    }
+
+    private void performBackup(String sourceToBackup, String cloudPath) throws RcloneException {
+        Path tempDirectory = null;
+
+        // Extract temp directory from source path if it's a compressed file
+        if (sourceToBackup.contains("backup-compression-")) {
+            tempDirectory = Paths.get(sourceToBackup).getParent();
+        }
+
+        try {
+            log.info("🔄 Backing up: {} -> {}", sourceToBackup, cloudPath);
+            cloudProvider.backup(sourceToBackup, cloudPath);
+            log.info("✅ Successfully backed up: {} -> {}", sourceToBackup, cloudPath);
+
+        } finally {
+            cleanupTempDirectory(tempDirectory);
+        }
+    }
+
+    private void cleanupTempDirectory(Path tempDirectory) {
+        if (tempDirectory != null) {
+            try {
+                FileUtils.deleteDirectoryRecursively(tempDirectory);
+                log.debug("🧹 Cleaned up temporary directory: {}", tempDirectory);
+            } catch (IOException e) {
+                log.warn("Failed to cleanup temporary directory {}: {}",
+                        tempDirectory, e.getMessage());
+            }
+        }
+    }
 }
