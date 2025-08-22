@@ -83,8 +83,9 @@ public class BackupService {
             if (sourceToBackup == null) {
                 return; // Skip this entry if compression fails
             }
+            boolean isFile = pathIsFile(sourceToBackup);
 
-            performBackup(sourceToBackup, entry.getCloudPath());
+            performBackup(sourceToBackup, entry.getCloudPath(), isFile);
 
         } catch (RemoteNotConfiguredException e) {
             log.error("Remote '{}' is not configured: {}", e.getRemoteName(), e.getMessage());
@@ -118,6 +119,7 @@ public class BackupService {
 
         } catch (IllegalArgumentException e) {
             log.error("Invalid backup entry configuration for {}: {}", entry.getLocalPath(), e.getMessage());
+            log.debug("Stack trace: ", e);
             return false;
         }
     }
@@ -152,7 +154,7 @@ public class BackupService {
         }
     }
 
-    private void performBackup(String sourceToBackup, String cloudPath) throws RcloneException {
+    private void performBackup(String sourceToBackup, String cloudPath, boolean isFile) throws RcloneException {
         Path tempDirectory = null;
 
         // Extract temp directory from source path if it's a compressed file
@@ -162,7 +164,7 @@ public class BackupService {
 
         try {
             log.info("🔄 Backing up: {} -> {}", sourceToBackup, cloudPath);
-            cloudProvider.backup(sourceToBackup, cloudPath);
+            cloudProvider.backup(sourceToBackup, cloudPath, isFile);
             log.info("✅ Successfully backed up: {} -> {}", sourceToBackup, cloudPath);
 
         } finally {
@@ -180,5 +182,9 @@ public class BackupService {
                         tempDirectory, e.getMessage());
             }
         }
+    }
+
+    private boolean pathIsFile(String path) {
+        return path != null && !path.isEmpty() && !path.endsWith("/");
     }
 }

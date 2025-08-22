@@ -21,14 +21,18 @@ public class RcloneCloudProvider implements CloudProvider {
     private String rcloneConfigPath;
 
     @Override
-    public void backup(String source, String destination) throws RcloneException {
+    public void backup(String source, String destination, boolean isFile) throws RcloneException {
         // Extract and validate remote configuration
         String remoteName = rcloneValidator.extractRemoteName(destination);
         rcloneValidator.validateRemoteConfiguration(remoteName);
 
         List<String> command = new ArrayList<>();
         command.add("rclone");
-        command.add("copy");
+        if(isFile) {
+            command.add("copyto");
+        } else {
+            command.add("copy");
+        }
         command.add(source);
         command.add(destination);
 

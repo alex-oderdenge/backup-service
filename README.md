@@ -99,9 +99,18 @@ When `compress` is set to `true`:
 
 1. **Cloud path must end with `.zip`**: The service validates that compressed backups have a `.zip` extension
    ```json
-   ✅ "cloudPath": "gdrive:/backup/photos.zip"    // Valid
-   ❌ "cloudPath": "gdrive:/backup/photos/"       // Invalid - will fail validation
+   {
+   "cloudPath": "gdrive:/backup/photos.zip"    
+   }
    ```
+   // Valid
+    
+    ```json
+    {
+      "cloudPath": "gdrive:/backup/photos/"
+    }
+    ```
+    // Invalid - will fail validation
 
 2. **Both files and directories are supported**: The service can compress:
    - Individual files (creates ZIP with single file)
@@ -186,8 +195,9 @@ If not provided, it will fallback to Rclone's default location automatically.
 
 Backup jobs are run using the cron expression from the config file:
 ```json
-"scheduleCron": "0 0 0 * * *" // Every day at midnight
+{"scheduleCron": "0 0 0 * * *" }
 ```
+// Every day at midnight
 
 You can override it in `application.yml` as a fallback:
 ```yaml
