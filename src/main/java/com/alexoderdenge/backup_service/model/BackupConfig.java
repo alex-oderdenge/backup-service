@@ -14,5 +14,6 @@ public class BackupConfig {
     public static class BackupEntry {
         private String localPath;
         private String cloudPath;
+        private boolean compress = false; // Default to false for backward compatibility
     }
 }

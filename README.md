@@ -9,6 +9,7 @@ A Spring Boot application for scheduled file backups to the cloud using [Rclone]
 - 🔁 **Automatic scheduled backups**
 - 🛠️ **Customizable source and destination paths**
 - ☁️ **Supports any Rclone-compatible cloud (GDrive, Dropbox, S3, etc.)**
+- 🗜️ **Optional compression support** - Compress files/directories to ZIP before upload
 - 🔒 **Configurable via CLI or bundled config file**
 - 🧩 **Extensible cloud provider interface**
 - ⚙️ **Optional support for custom `rclone.conf`**
@@ -41,6 +42,7 @@ The application loads configuration from a `JSON` file specifying:
 
 - Paths to back up from the local machine
 - Destination paths in the cloud (via Rclone)
+- Optional compression for individual backup entries
 - Cron expression for scheduling
 - Cloud provider name (only `rclone` supported initially)
 
@@ -55,10 +57,88 @@ The application loads configuration from a `JSON` file specifying:
     },
     {
       "localPath": "/home/user/photos/",
-      "cloudPath": "dropbox:/backup/photos/"
+      "cloudPath": "gdrive:/backup/photos.zip",
+      "compress": true
+    },
+    {
+      "localPath": "/home/user/important/",
+      "cloudPath": "dropbox:/backup/important.zip",
+      "compress": true
     }
   ],
   "scheduleCron": "0 0 0 * * *",
+  "cloudProvider": "rclone"
+}
+```
+
+---
+
+## 🗜️ Compression Support
+
+The backup service supports optional compression of files and directories before uploading to the cloud. This feature is useful for:
+
+- **Reducing storage costs** by compressing large directories
+- **Faster uploads** for directories with many small files
+- **Organizing backups** by creating single archive files
+
+### Configuration
+
+Add the `compress` field to any backup entry in your configuration:
+
+```json
+{
+  "localPath": "/home/user/photos/",
+  "cloudPath": "gdrive:/backup/photos.zip",
+  "compress": true
+}
+```
+
+### Important Requirements
+
+When `compress` is set to `true`:
+
+1. **Cloud path must end with `.zip`**: The service validates that compressed backups have a `.zip` extension
+   ```json
+   ✅ "cloudPath": "gdrive:/backup/photos.zip"    // Valid
+   ❌ "cloudPath": "gdrive:/backup/photos/"       // Invalid - will fail validation
+   ```
+
+2. **Both files and directories are supported**: The service can compress:
+   - Individual files (creates ZIP with single file)
+   - Entire directories (creates ZIP with full directory structure)
+
+3. **Temporary storage**: During compression, temporary files are created in the system temp directory and automatically cleaned up after upload
+
+### Compression Behavior
+
+- **Directory Structure Preservation**: Directory hierarchies are maintained within the ZIP file
+- **Consistent Naming**: ZIP files are named after the source directory/file (e.g., `documents/` → `documents.zip`)
+- **Backup Overwriting**: Since ZIP filenames are consistent, each backup run will overwrite the previous compressed backup instead of creating duplicates
+- **Error Handling**: If compression fails, the backup entry is skipped and other entries continue processing
+- **Memory Efficient**: Large files are streamed during compression to avoid memory issues
+
+### Example Configuration
+
+```json
+{
+  "backupEntries": [
+    {
+      "localPath": "/home/user/documents/",
+      "cloudPath": "gdrive:/backup/documents/",
+      "compress": false
+    },
+    {
+      "localPath": "/home/user/photos/vacation/",
+      "cloudPath": "gdrive:/backup/vacation-photos.zip",
+      "compress": true
+    },
+    {
+      "localPath": "/home/user/important-file.pdf",
+      "cloudPath": "gdrive:/backup/important.zip",
+      "compress": true
+    }
+  ],
+  "scheduleCron": "0 0 * * *",
   "cloudProvider": "rclone"
 }
 ```
@@ -271,7 +351,13 @@ cat > $HOME/.config/backup-service/backup-config.json << 'EOF'
   "backupEntries": [
     {
       "localPath": "$HOME/test/",
-      "cloudPath": "gdrive:test/"
+      "cloudPath": "gdrive:test/",
+      "compress": false
+    },
+    {
+      "localPath": "$HOME/documents/",
+      "cloudPath": "gdrive:backup/documents.zip",
+      "compress": true
     }
   ],
   "scheduleCron": "0 0 0 * * *",
@@ -351,7 +437,9 @@ No authentication is added yet. To protect the HTTP endpoint:
 - Watch local folders for real-time backup (optional)
 - Upload summary logs to cloud
 - Add web UI dashboard for status/configuration
+- Add support for other compression formats (tar.gz, 7z, etc.)
 - ~~Validate `cloudPath` remotes exist in `rclone.conf`~~ ✅ **COMPLETED**
+- ~~Add compression support for files and directories~~ ✅ **COMPLETED**
 
 ---
 

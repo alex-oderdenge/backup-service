@@ -2,11 +2,18 @@
   "backupEntries": [
     {
       "localPath": "/home/user/documents/",
-      "cloudPath": "gdrive:/backup/documents/"
+      "cloudPath": "gdrive:/backup/documents/",
+      "compress": false
     },
     {
       "localPath": "/home/user/photos/",
-      "cloudPath": "gdrive:/backup/photos/"
+      "cloudPath": "gdrive:/backup/photos.zip",
+      "compress": true
+    },
+    {
+      "localPath": "/home/user/important-file.txt",
+      "cloudPath": "gdrive:/backup/important-file.zip",
+      "compress": true
     }
   ],
   "scheduleCron": "0 0 * * *",
