@@ -23,8 +23,7 @@ public class FileUtils {
     }
 
     public static boolean isFile(String path) {
-        File file = new File(path);
-        return file.exists() && file.isFile();
+        return Files.isRegularFile(Paths.get(path));
     }
 
 
