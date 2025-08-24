@@ -450,6 +450,14 @@ No authentication is added yet. To protect the HTTP endpoint:
 - Add support for other compression formats (tar.gz, 7z, etc.)
 - ~~Validate `cloudPath` remotes exist in `rclone.conf`~~ ✅ **COMPLETED**
 - ~~Add compression support for files and directories~~ ✅ **COMPLETED**
+- Add real time log of compression progress
+- Make endpoint async with another endpoint to check status and percentage of completion. Block backup if one is already running.
+- If the file is compressed, check update date in local and remote before uploading to avoid unecessary compression and upload.
+- Create a network speed test to warn if the network is too slow for large backups.
+- Add email notifications on success/failure.
+- Fix unit tests
+- Log the amount of bandwidth, time taken, total size uploaded, total size compressed, total number of files, total number of directories, etc. Make that in a way I can sum it and have statistics over time.
+- 
 
 ---
 
