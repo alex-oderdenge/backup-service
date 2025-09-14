@@ -31,7 +31,7 @@ public class RcloneCloudProvider implements CloudProvider {
         if(isFile) {
             command.add("copyto");
         } else {
-            command.add("copy");
+            command.add("sync");
         }
         command.add(source);
         command.add(destination);
