@@ -13,23 +13,23 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 
-@RestController
-@RequestMapping("/api/backup")
-@RequiredArgsConstructor
-@Slf4j
-public class BackupController {
+    @RestController
+    @RequestMapping("/api/backup")
+    @RequiredArgsConstructor
+    @Slf4j
+    public class BackupController {
 
-    private final BackupService backupService;
-    private final RcloneValidator rcloneValidator;
+        private final BackupService backupService;
+        private final RcloneValidator rcloneValidator;
 
-    @Value("${config:classpath:backup-config.json}")
-    private String configPath;
+        @Value("${config:classpath:backup-config.json}")
+        private String configPath;
 
-    @Value("${rclone.config-path:}")
-    private String rcloneConfigPath;
+        @Value("${rclone.config-path:}")
+        private String rcloneConfigPath;
 
-    @PostMapping("/run")
-    public ResponseEntity<Map<String, Object>> runBackupNow() {
+        @PostMapping("/run")
+        public ResponseEntity<Map<String, Object>> runBackupNow() {
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
         log.info("🚀 Manual backup triggered via API at: {}", timestamp);
         log.info("📁 Using backup config: {}", configPath);

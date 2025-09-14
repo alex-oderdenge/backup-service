@@ -20,6 +20,8 @@ import java.nio.file.Paths;
 @Slf4j
 public class BackupService {
 
+    private static final String BACKUP_ROOT_FOLDER = "backup-service";
+
     private final CloudProvider cloudProvider;
     private final BackupConfig config;
     private final RcloneValidator rcloneValidator;
@@ -48,6 +50,7 @@ public class BackupService {
         log.info("📁 Backup config file: {}", configPath);
         log.info("🔧 Rclone config file: {}", rcloneConfigPath.isEmpty() ? "default (~/.config/rclone/rclone.conf)" : rcloneConfigPath);
         log.info("📋 Backup entries to process: {}", config.getBackupEntries().size());
+        log.info("📂 All backups will be stored under: {}/", BACKUP_ROOT_FOLDER);
     }
 
     private boolean validateRcloneInstallation() {
@@ -70,12 +73,53 @@ public class BackupService {
         }
     }
 
+    /**
+     * Normalizes cloud path to include backup-service root folder
+     * 
+     * @param cloudPath the original cloud path from config
+     * @return the normalized path with backup-service root folder
+     */
+    private String normalizeCloudPath(String cloudPath) {
+        if (cloudPath == null || cloudPath.trim().isEmpty()) {
+            throw new IllegalArgumentException("Cloud path cannot be null or empty");
+        }
+
+        // Extract remote name and path
+        String[] parts = cloudPath.split(":", 2);
+        if (parts.length != 2) {
+            throw new IllegalArgumentException("Invalid cloud path format. Expected 'remote:path', got: " + cloudPath);
+        }
+
+        String remoteName = parts[0];
+        String path = parts[1];
+
+        // Remove leading slash if present
+        if (path.startsWith("/")) {
+            path = path.substring(1);
+        }
+
+        // Ensure path doesn't already start with backup-service
+        if (path.startsWith(BACKUP_ROOT_FOLDER + "/")) {
+            log.debug("Cloud path already includes backup-service root folder: {}", cloudPath);
+            return cloudPath;
+        }
+
+        // Construct normalized path
+        String normalizedPath = remoteName + ":" + BACKUP_ROOT_FOLDER + "/" + path;
+        
+        log.debug("Normalized cloud path: '{}' -> '{}'", cloudPath, normalizedPath);
+        return normalizedPath;
+    }
+
     private void processIndividualBackupEntry(BackupConfig.BackupEntry entry) {
         try {
+            // Normalize cloud path to include backup-service root folder
+            String normalizedCloudPath = normalizeCloudPath(entry.getCloudPath());
+            
             log.info("🔍 Processing backup entry: {} -> {} (compress: {})",
-                    entry.getLocalPath(), entry.getCloudPath(), entry.isCompress());
+                    entry.getLocalPath(), normalizedCloudPath, entry.isCompress());
 
-            if (!validateBackupEntry(entry)) {
+            if (!validateBackupEntry(entry, normalizedCloudPath)) {
                 return; // Skip this entry if validation fails
             }
 
@@ -85,7 +129,7 @@ public class BackupService {
             }
             boolean isFile = pathIsFile(sourceToBackup);
 
-            performBackup(sourceToBackup, entry.getCloudPath(), isFile);
+            performBackup(sourceToBackup, normalizedCloudPath, isFile);
 
         } catch (RemoteNotConfiguredException e) {
             log.error("Remote '{}' is not configured: {}", e.getRemoteName(), e.getMessage());
@@ -101,10 +145,10 @@ public class BackupService {
         }
     }
 
-    private boolean validateBackupEntry(BackupConfig.BackupEntry entry) {
+    private boolean validateBackupEntry(BackupConfig.BackupEntry entry, String normalizedCloudPath) {
         try {
             // Validate cloud path for compression requirements
-            compressionService.validateCloudPathForCompression(entry.getCloudPath(), entry.isCompress());
+            compressionService.validateCloudPathForCompression(normalizedCloudPath, entry.isCompress());
 
             // Validate local path
             if (entry.getLocalPath() == null || entry.getLocalPath().isEmpty()) {
